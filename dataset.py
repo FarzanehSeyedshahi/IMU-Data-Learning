@@ -3,8 +3,7 @@ import pandas as pd
 import quaternion
 import scipy.interpolate
 
-from keras.utils import Sequence
-
+from tensorflow.keras.utils import Sequence
 
 def interpolate_3dvector_linear(input, input_timestamp, output_timestamp):
     assert input.shape[0] == input_timestamp.shape[0]
