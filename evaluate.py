@@ -3,7 +3,7 @@ import numpy as np
 
 from keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.externals import joblib
+import joblib
 
 from dataset import *
 from util import *
