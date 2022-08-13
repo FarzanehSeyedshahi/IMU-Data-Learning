@@ -1,20 +1,6 @@
-# IMU-Based 6-DOF Odometry
+# IMU-Based 9-DOF Odometry
 
-By [João Paulo Lima](https://www.cin.ufpe.br/~jpsml/), [Hideaki Uchiyama](http://limu.ait.kyushu-u.ac.jp/~uchiyama/me/index_e.html), [Rin-ichiro Taniguchi](http://limu.ait.kyushu-u.ac.jp/e/member/member0001.html).
 
-This repository contains the code for the paper "[End-to-End Learning Framework for IMU-Based 6-DOF Odometry](https://www.mdpi.com/1424-8220/19/17/3777)". You can find a demonstration video [here](https://www.mdpi.com/1424-8220/19/17/3777/s2).
-
-## Prerequisites
-- Python 3
-- TensorFlow
-- Keras
-- NumPy
-- Matplotlib
-- scikit-learn
-- Pandas
-- SciPy
-- numpy-quaternion
-- tfquaternion
 
 ## Training
 
@@ -47,21 +33,3 @@ We provide code for computing trajectory RMSE for testing sequences from [OxIOD]
 1. Download the desired dataset and unzip it into the project folder (the path should be `"<project folder>/Oxford Inertial Odometry Dataset/handheld/data<id>/"` for OxIOD and `"<project folder>/<sequence name>/mav0/"` for EuRoC MAV)
 2. Run `python evaluate.py dataset model`, where `dataset` is either `oxiod` or `euroc` and `model` is the trained model file path (e.g. `6dofio_oxiod.hdf5`).
 
-## Citation
-
-If you use this method in your research, please cite:
-
-    @article{lima2019end,
-            title={End-to-End Learning Framework for IMU-Based 6-DOF Odometry},
-            author={Silva do Monte Lima, Jo{\~a}o Paulo and Uchiyama, Hideaki and Taniguchi, Rin-ichiro},
-            journal={Sensors},
-            volume={19},
-            number={17},
-            pages={3777},
-            year={2019},
-            publisher={Multidisciplinary Digital Publishing Institute}
-    }
-
-## License
-
-BSD
