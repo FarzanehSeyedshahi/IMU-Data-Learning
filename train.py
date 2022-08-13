@@ -4,7 +4,7 @@ import argparse
 
 from keras.callbacks import ModelCheckpoint, TensorBoard
 from keras.models import load_model
-from keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam
 
 from sklearn.utils import shuffle
 
@@ -33,7 +33,11 @@ def main():
 
     imu_data_filenames = []
     gt_data_filenames = []
-
+    
+    if args.dataset == 'Synthetic':
+        imu_data_filenames.append()
+        gt_data_filenames.append()
+        
     if args.dataset == 'oxiod':
         imu_data_filenames.append('Oxford Inertial Odometry Dataset/handheld/data5/syn/imu3.csv')
         imu_data_filenames.append('Oxford Inertial Odometry Dataset/handheld/data2/syn/imu1.csv')
