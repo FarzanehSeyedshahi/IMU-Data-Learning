@@ -4,7 +4,7 @@ import tensorflow as tf
 from keras.models import Sequential, Model
 from keras.layers import Bidirectional, LSTM, CuDNNLSTM, Dropout, Dense, Input, Layer, Conv1D, MaxPooling1D, concatenate
 from keras.initializers import Constant
-from keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam
 from keras.losses import mean_absolute_error
 from keras import backend as K
 
@@ -39,6 +39,13 @@ class CustomMultiLossLayer(Layer):
         self.nb_outputs = nb_outputs
         self.is_placeholder = True
         super(CustomMultiLossLayer, self).__init__(**kwargs)
+        
+     def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'nb_outputs': self.nb_outputs
+        })
+        return config
         
     def build(self, input_shape=None):
         # initialise log_vars
