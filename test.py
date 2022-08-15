@@ -12,7 +12,7 @@ from util import *
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('dataset', choices=['oxiod', 'euroc'], help='Training dataset name (\'oxiod\' or \'euroc\')')
+    parser.add_argument('dataset', choices=['oxiod', 'euroc', 'synthetic'], help='Training dataset name (\'oxiod\' or \'euroc\')')
     parser.add_argument('model', help='Model path')
     parser.add_argument('input', help='Input sequence path (e.g. \"Oxford Inertial Odometry Dataset/handheld/data4/syn/imu1.csv\" for OxIOD, \"MH_02_easy/mav0/imu0/data.csv\" for EuRoC)')
     parser.add_argument('gt', help='Ground truth path (e.g. \"Oxford Inertial Odometry Dataset/handheld/data4/syn/vi1.csv\" for OxIOD, \"MH_02_easy/mav0/state_groundtruth_estimate0/data.csv\" for EuRoC)')
@@ -27,18 +27,20 @@ def main():
         gyro_data, acc_data, pos_data, ori_data = load_oxiod_dataset(args.input, args.gt)
     elif args.dataset == 'euroc':
         gyro_data, acc_data, pos_data, ori_data = load_euroc_mav_dataset(args.input, args.gt)
+    elif args.dataset == 'synthetic':
+        gyro_data, acc_data, pos_data, ori_data = load_synthetic_dataset(args.input)
 
     [x_gyro, x_acc], [y_delta_p, y_delta_q], init_p, init_q = load_dataset_6d_quat(gyro_data, acc_data, pos_data, ori_data, window_size, stride)
 
     if args.dataset == 'oxiod':
         [yhat_delta_p, yhat_delta_q] = model.predict([x_gyro[0:200, :, :], x_acc[0:200, :, :]], batch_size=1, verbose=1)
-    elif args.dataset == 'euroc':
+    elif args.dataset == 'euroc' or 'synthetic':
         [yhat_delta_p, yhat_delta_q] = model.predict([x_gyro, x_acc], batch_size=1, verbose=1)
-
+        
     gt_trajectory = generate_trajectory_6d_quat(init_p, init_q, y_delta_p, y_delta_q)
     pred_trajectory = generate_trajectory_6d_quat(init_p, init_q, yhat_delta_p, yhat_delta_q)
 
-    if args.dataset == 'oxiod':
+    if args.dataset == 'oxiod' or 'synthetic':
         gt_trajectory = gt_trajectory[0:200, :]
 
     matplotlib.rcParams.update({'font.size': 18})
@@ -63,7 +65,8 @@ def main():
     ax.set_ylim(min_y, min_y + max_range)
     ax.set_zlim(min_z, min_z + max_range)
     ax.legend(['ground truth', 'predicted'], loc='upper right')
-    plt.show()
+    fig.show()
+    fig.savefig("position_prediction.png")
 
 if __name__ == '__main__':
     main()
