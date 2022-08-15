@@ -2,7 +2,7 @@ import tfquaternion as tfq
 import tensorflow as tf
 
 from keras.models import Sequential, Model
-from keras.layers import Bidirectional, LSTM, CuDNNLSTM, Dropout, Dense, Input, Layer, Conv1D, MaxPooling1D, concatenate
+from keras.layers import Bidirectional, LSTM, CuDNNLSTM, Dropout, Dense, Input, Layer, Conv1D, MaxPooling1D, concatenate, Add, Activation
 from keras.initializers import Constant
 from tensorflow.keras.optimizers import Adam
 from keras.losses import mean_absolute_error
@@ -104,6 +104,38 @@ def create_pred_model_6d_quat(window_size=200):
 
     model.summary()
     
+    return model
+
+## Create Netwrok Arch for the secound paper( Feature Detection + LSTM Learning) model
+def create_pred_resnet_model_6d_quat(window_size=200):
+    x1 = Input((window_size, 3), name='x1')
+    x2 = Input((window_size, 3), name='x2')
+
+    convA1 = Conv1D(128, 11, activation='relu', padding = "same")(x1)
+    conv_shortcut_A1 = convA1
+    convA2 = Conv1D(128, 11, activation='relu', padding = "same")(convA1)
+    convA3 = Conv1D(128, 11, activation='relu', padding = "same")(convA2)
+    addA = Add()([convA3, conv_shortcut_A1])
+    actA = Activation('relu')(addA)
+    poolA = MaxPooling1D(3)(actA)
+
+    convB1 = Conv1D(128, 11, activation='relu', padding = "same")(x2)
+    conv_shortcut_B1 = convB1
+    convB2 = Conv1D(128, 11, activation='relu', padding = "same")(convB1)
+    convB3 = Conv1D(128, 11, activation='relu', padding = "same")(convB2)
+    addB = Add()([convB3, conv_shortcut_B1])
+    actB = Activation('relu')(addB)
+    poolB = MaxPooling1D(3)(actB)
+
+    AB = concatenate([poolA, poolB])
+    lstm1 = Bidirectional(CuDNNLSTM(128, return_sequences=True))(AB)
+    drop1 = Dropout(0.25)(lstm1)
+    lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)
+    drop2 = Dropout(0.25)(lstm2)    
+    y1_pred = Dense(3)(drop2)
+    y2_pred = Dense(4)(drop2)
+    model = Model([x1, x2], [y1_pred, y2_pred])
+    model.summary()
     return model
 
 ## Adding Loss function to the model Architecture
