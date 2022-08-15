@@ -40,7 +40,7 @@ class CustomMultiLossLayer(Layer):
         self.is_placeholder = True
         super(CustomMultiLossLayer, self).__init__(**kwargs)
         
-     def get_config(self):
+    def get_config(self):
         config = super().get_config().copy()
         config.update({
             'nb_outputs': self.nb_outputs
