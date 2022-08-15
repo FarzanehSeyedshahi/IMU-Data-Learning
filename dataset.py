@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import quaternion
 import scipy.interpolate
+import glob
 
 from tensorflow.keras.utils import Sequence
 
@@ -11,6 +12,17 @@ def interpolate_3dvector_linear(input, input_timestamp, output_timestamp):
     interpolated = func(output_timestamp)
     return interpolated
 
+def load_synthetic_dataset(path):
+    df = pd.concat(map(lambda x:pd.read_csv(x, header = None), glob.glob(path + "/*.csv")))
+    df.columns = ["time", "AccX", "AccY", "AccZ", "GyroX", "GyroY", "GyroZ", "MagX", "MagY", "MagZ","PosX","PosY", "PosZ", "AngvW", "Angvi", "Angvj", "Angvk"]
+
+    gyro_data = df[["GyroX", "GyroY", "GyroZ"]].values
+    acc_data = X = df[["AccX", "AccY", "AccZ"]].values
+    
+    pos_data = df[["PosX","PosY", "PosZ"]].values
+    ori_data = df[["AngvW", "Angvi", "Angvj", "Angvk"]].values
+
+    return gyro_data, acc_data, pos_data, ori_data
 
 def load_euroc_mav_dataset(imu_data_filename, gt_data_filename):
     gt_data = pd.read_csv(gt_data_filename).values    
