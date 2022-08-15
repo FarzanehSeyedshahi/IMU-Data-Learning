@@ -119,6 +119,7 @@ def main():
     x_gyro, x_acc, y_delta_p, y_delta_q = shuffle(x_gyro, x_acc, y_delta_p, y_delta_q)
 
     pred_model = create_pred_model_6d_quat(window_size)
+    pred_model = create_pred_resnet_model_6d_quat(window_size)
     train_model = create_train_model_6d_quat(pred_model, window_size)
     train_model.compile(optimizer=Adam(0.0001), loss=None)
 
@@ -129,7 +130,8 @@ def main():
 
     train_model = load_model('model_checkpoint.hdf5', custom_objects={'CustomMultiLossLayer':CustomMultiLossLayer}, compile=False)
 
-    pred_model = create_pred_model_6d_quat(window_size)
+#     pred_model = create_pred_model_6d_quat(window_size)
+    pred_model = create_pred_resnet_model_6d_quat(window_size)
     pred_model.set_weights(train_model.get_weights()[:-2])
     pred_model.save('%s.hdf5' % args.output)
 
