@@ -262,3 +262,91 @@ def create_model_2d(window_size=200):
     model.compile(optimizer = Adam(0.0001), loss = 'mean_squared_error')
     
     return model
+
+## Adding 9d model
+def create_resnet_pred_model_9d_quat(window_size=200):
+    
+    x1 = Input((window_size, 3), name='x1')
+    x2 = Input((window_size, 3), name='x2')
+    x3 = Input((window_size, 3), name='x3')
+
+    convA1 = Conv1D(128, 11, activation='relu', padding = "same")(x1)
+    conv_shortcut_A1 = convA1
+    convA2 = Conv1D(128, 11, activation='relu', padding = "same")(convA1)
+    convA3 = Conv1D(128, 11, activation='relu', padding = "same")(convA2)
+    addA = Add()([convA3, conv_shortcut_A1])
+    actA = Activation('relu')(addA)
+    poolA = MaxPooling1D(3)(actA)
+
+    convB1 = Conv1D(128, 11, activation='relu', padding = "same")(x2)
+    conv_shortcut_B1 = convB1
+    convB2 = Conv1D(128, 11, activation='relu', padding = "same")(convB1)
+    convB3 = Conv1D(128, 11, activation='relu', padding = "same")(convB2)
+    addB = Add()([convB3, conv_shortcut_B1])
+    actB = Activation('relu')(addB)
+    poolB = MaxPooling1D(3)(actB)
+
+    convC1 = Conv1D(128, 11, activation='relu', padding = "same")(x3)
+    conv_shortcut_C1 = convC1
+    convC2 = Conv1D(128, 11, activation='relu', padding = "same")(convC1)
+    convC3 = Conv1D(128, 11, activation='relu', padding = "same")(convC2)
+    addC = Add()([convC3, conv_shortcut_C1])
+    actC = Activation('relu')(addC)
+    poolC = MaxPooling1D(3)(actC)
+
+    ABC = concatenate([poolA, poolB, poolC])
+    lstm1 = Bidirectional(CuDNNLSTM(128, return_sequences=True))(ABC)
+    drop1 = Dropout(0.25)(lstm1)
+    lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)
+    drop2 = Dropout(0.25)(lstm2)    
+    y1_pred = Dense(3)(drop2)
+    y2_pred = Dense(4)(drop2)
+
+    model = Model([x1, x2, x3], [y1_pred, y2_pred])
+    model.summary()
+    return model
+
+## Adding Loss function to the 9d model Architecture
+def create_train_resnet_model_9d_quat(pred_model, window_size=200):
+    x1 = Input((window_size, 3), name='x1')
+    x2 = Input((window_size, 3), name='x2')
+    x3 = Input((window_size, 3), name='x3')
+    y1_pred, y2_pred = pred_model([x1, x2, x3])
+    y1_true = Input(shape=(3,), name='y1_true')
+    y2_true = Input(shape=(4,), name='y2_true')
+    out = CustomMultiLossLayer(nb_outputs=2)([y1_true, y2_true, y1_pred, y2_pred])
+    train_model = Model([x1, x2, x3, y1_true, y2_true], out)
+    train_model.summary()
+    return train_model
+
+## Create Netwrok Arch for the secound paper( Feature Detection + LSTM Learning) model
+def create_pred_resnet_model_6d_quat(window_size=200):
+    x1 = Input((window_size, 3), name='x1')
+    x2 = Input((window_size, 3), name='x2')
+
+    convA1 = Conv1D(128, 11, activation='relu', padding = "same")(x1)
+    conv_shortcut_A1 = convA1
+    convA2 = Conv1D(128, 11, activation='relu', padding = "same")(convA1)
+    convA3 = Conv1D(128, 11, activation='relu', padding = "same")(convA2)
+    addA = Add()([convA3, conv_shortcut_A1])
+    actA = Activation('relu')(addA)
+    poolA = MaxPooling1D(3)(actA)
+
+    convB1 = Conv1D(128, 11, activation='relu', padding = "same")(x2)
+    conv_shortcut_B1 = convB1
+    convB2 = Conv1D(128, 11, activation='relu', padding = "same")(convB1)
+    convB3 = Conv1D(128, 11, activation='relu', padding = "same")(convB2)
+    addB = Add()([convB3, conv_shortcut_B1])
+    actB = Activation('relu')(addB)
+    poolB = MaxPooling1D(3)(actB)
+
+    AB = concatenate([poolA, poolB])
+    lstm1 = Bidirectional(CuDNNLSTM(128, return_sequences=True))(AB)
+    drop1 = Dropout(0.25)(lstm1)
+    lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)
+    drop2 = Dropout(0.25)(lstm2)    
+    y1_pred = Dense(3)(drop2)
+    y2_pred = Dense(4)(drop2)
+    model = Model([x1, x2], [y1_pred, y2_pred])
+    model.summary()
+    return model
