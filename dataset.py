@@ -32,6 +32,58 @@ def load_euroc_mav_dataset(imu_data_filename, gt_data_filename):
     acc_data = interpolate_3dvector_linear(imu_data[:, 4:7], imu_data[:, 0], gt_data[:, 0])
     pos_data = gt_data[:, 1:4]
     ori_data = gt_data[:, 4:8]
+    
+def load_synthetic_9d_dataset(path):
+    df = pd.concat(map(lambda x:pd.read_csv(x, header = None), glob.glob(path + "/*.csv")))
+    df.columns = ["time", "AccX", "AccY", "AccZ", "GyroX", "GyroY", "GyroZ", "MagX", "MagY", "MagZ","PosX","PosY", "PosZ", "AngvW", "Angvi", "Angvj", "Angvk"]
+
+    gyro_data = df[["GyroX", "GyroY", "GyroZ"]].values
+    acc_data = df[["AccX", "AccY", "AccZ"]].values
+    mag_data = df[["MagX", "MagY", "MagZ"]].values
+    pos_data = df[["PosX","PosY", "PosZ"]].values
+    ori_data = df[["AngvW", "Angvi", "Angvj", "Angvk"]].values
+
+    return gyro_data, acc_data, mag_data, pos_data, ori_data
+
+
+def load_dataset_9d_quat(gyro_data, acc_data, mag_data, pos_data, ori_data, window_size=200, stride=10):
+    #gyro_acc_data = np.concatenate([gyro_data, acc_data], axis=1)
+
+    init_p = pos_data[window_size//2 - stride//2, :]
+    init_q = ori_data[window_size//2 - stride//2, :]
+
+    #x = []
+    x_gyro = []
+    x_acc = []
+    x_mag = []
+    y_delta_p = []
+    y_delta_q = []
+
+    for idx in range(0, gyro_data.shape[0] - window_size - 1, stride):
+        x_gyro.append(gyro_data[idx + 1 : idx + 1 + window_size, :])
+        x_acc.append(acc_data[idx + 1 : idx + 1 + window_size, :])
+        x_mag.append(mag_data[idx + 1 : idx + 1 + window_size, :])
+
+        p_a = pos_data[idx + window_size//2 - stride//2, :]
+        p_b = pos_data[idx + window_size//2 + stride//2, :]
+
+        q_a = quaternion.from_float_array(ori_data[idx + window_size//2 - stride//2, :])
+        q_b = quaternion.from_float_array(ori_data[idx + window_size//2 + stride//2, :])
+
+        delta_p = np.matmul(quaternion.as_rotation_matrix(q_a).T, (p_b.T - p_a.T)).T
+
+        delta_q = force_quaternion_uniqueness(q_a.conjugate() * q_b)
+
+        y_delta_p.append(delta_p)
+        y_delta_q.append(quaternion.as_float_array(delta_q))
+
+    x_gyro = np.reshape(x_gyro, (len(x_gyro), x_gyro[0].shape[0], x_gyro[0].shape[1]))
+    x_acc = np.reshape(x_acc, (len(x_acc), x_acc[0].shape[0], x_acc[0].shape[1]))
+    x_mag = np.reshape(x_mag, (len(x_mag), x_mag[0].shape[0], x_mag[0].shape[1]))
+    y_delta_p = np.reshape(y_delta_p, (len(y_delta_p), y_delta_p[0].shape[0]))
+    y_delta_q = np.reshape(y_delta_q, (len(y_delta_q), y_delta_q[0].shape[0]))
+
+    return [x_gyro, x_acc, x_mag], [y_delta_p, y_delta_q], init_p, init_q
 
     return gyro_data, acc_data, pos_data, ori_data
 
