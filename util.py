@@ -6,14 +6,17 @@ def generate_trajectory_6d_quat(init_p, init_q, y_delta_p, y_delta_q):
     cur_p = np.array(init_p)
     cur_q = quaternion.from_float_array(init_q)
     pred_p = []
+    pred_q = []
     pred_p.append(np.array(cur_p))
+    pred_q.append(np.array(init_q))
 
     for [delta_p, delta_q] in zip(y_delta_p, y_delta_q):
         cur_p = cur_p + np.matmul(quaternion.as_rotation_matrix(cur_q), delta_p.T).T
         cur_q = cur_q * quaternion.from_float_array(delta_q).normalized()
         pred_p.append(np.array(cur_p))
-
-    return np.reshape(pred_p, (len(pred_p), 3))
+        pred_q.append(np.asarray(cur_q, dtype=np.quaternion).view((np.double, 4)))
+        
+    return np.reshape(pred_p, (len(pred_p), 3)), np.reshape(pred_q, (len(pred_q),4))
 
 
 def generate_trajectory_3d(init_l, init_theta, init_psi, y_delta_l, y_delta_theta, y_delta_psi):

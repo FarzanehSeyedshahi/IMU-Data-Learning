@@ -106,6 +106,42 @@ def create_pred_model_6d_quat(window_size=200):
     
     return model
 
+def create_pred_model_9d_quat(window_size=200):
+
+    x1 = Input((window_size, 3), name='x1')
+    x2 = Input((window_size, 3), name='x2')
+    x3 = Input((window_size, 3), name='x3')
+
+    convA1 = Conv1D(128, 11)(x1)
+    convA2 = Conv1D(128, 11)(convA1)
+    poolA = MaxPooling1D(3)(convA2)
+
+    convB1 = Conv1D(128, 11)(x2)
+    convB2 = Conv1D(128, 11)(convB1)
+    poolB = MaxPooling1D(3)(convB2)
+
+    convC1 = Conv1D(128, 11)(x3)
+    convC2 = Conv1D(128, 11)(convC1)
+    poolC = MaxPooling1D(3)(convC2)
+
+
+    ABC = concatenate([poolA, poolB, poolC])
+    lstm1 = Bidirectional(CuDNNLSTM(128, return_sequences=True))(ABC)
+    drop1 = Dropout(0.25)(lstm1)
+    lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)
+    drop2 = Dropout(0.25)(lstm2)   
+
+    y1_pred = Dense(3)(drop2)
+    y2_pred = Dense(4)(drop2)
+
+    model = Model([x1, x2, x3], [y1_pred, y2_pred])
+
+    model.summary()
+    
+    return model
+
+
+
 ## Create Netwrok Arch for the secound paper( Feature Detection + LSTM Learning) model
 def create_pred_resnet_model_6d_quat(window_size=200):
     x1 = Input((window_size, 3), name='x1')
@@ -307,7 +343,7 @@ def create_resnet_pred_model_9d_quat(window_size=200):
     return model
 
 ## Adding Loss function to the 9d model Architecture
-def create_train_resnet_model_9d_quat(pred_model, window_size=200):
+def create_train_resnet_or_without_model_9d_quat(pred_model, window_size=200):
     x1 = Input((window_size, 3), name='x1')
     x2 = Input((window_size, 3), name='x2')
     x3 = Input((window_size, 3), name='x3')

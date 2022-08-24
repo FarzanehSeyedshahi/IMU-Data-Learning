@@ -27,8 +27,8 @@ def main():
         [yhat_delta_p, yhat_delta_q] = model.predict([x_gyro[0:200, :, :], x_acc[0:200, :, :]], batch_size=1, verbose=0)
         
 
-        gt_trajectory = generate_trajectory_6d_quat(init_p, init_q, y_delta_p, y_delta_q)
-        pred_trajectory = generate_trajectory_6d_quat(init_p, init_q, yhat_delta_p, yhat_delta_q)
+        gt_trajectory, gt_quaternion = generate_trajectory_6d_quat(init_p, init_q, y_delta_p, y_delta_q)
+        pred_trajectory, pred_quaternion = generate_trajectory_6d_quat(init_p, init_q, yhat_delta_p, yhat_delta_q)
 
         # for i in range(0, len(pred_trajectory-1), 200):
         pred_trajectory = pred_trajectory[0:200, :]
@@ -85,8 +85,8 @@ def main():
             elif args.dataset == 'euroc':
                 [yhat_delta_p, yhat_delta_q] = model.predict([x_gyro, x_acc], batch_size=1, verbose=0)
 
-            gt_trajectory = generate_trajectory_6d_quat(init_p, init_q, y_delta_p, y_delta_q)
-            pred_trajectory = generate_trajectory_6d_quat(init_p, init_q, yhat_delta_p, yhat_delta_q)
+            gt_trajectory, gt_quaternion = generate_trajectory_6d_quat(init_p, init_q, y_delta_p, y_delta_q)
+            pred_trajectory, prerd_quaternion = generate_trajectory_6d_quat(init_p, init_q, yhat_delta_p, yhat_delta_q)
 
             if args.dataset == 'oxiod':
                 pred_trajectory = pred_trajectory[0:200, :]
