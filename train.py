@@ -1,5 +1,7 @@
 ﻿#!/usr/bin/python
 # -*- coding: utf-8 -*-
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -246,7 +248,8 @@ def main():
         train_model = create_train_resnet_or_without_model_9d_quat(pred_model,
                 window_size)
     else:
-        (x_gyro, x_acc, y_delta_p, y_delta_q) = shuffle(x_gyro, x_acc,
+        ((x_gyro, x_acc, y_delta_p, y_delta_q)) = shuffle(x_gyro, x_acc,
+               
                 y_delta_p, y_delta_q)
 
         pred_model = create_pred_model_6d_quat(window_size)
