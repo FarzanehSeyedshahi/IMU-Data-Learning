@@ -7,6 +7,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
 from keras.models import load_model
 
+from time import time
+
 from dataset import *
 from util import *
 
@@ -91,7 +93,7 @@ def main():
     ax.set_zlim(min_z, min_z + max_range)
     ax.legend(['ground truth', 'predicted'], loc='upper right')
     fig.show()
-    fig.savefig("position_prediction3-6d-oxid_original1200.png")
+    fig.savefig("pic_results/position_{}_{}_{}.png".format(time(), args.dataset, args.model))
 
 if __name__ == '__main__':
     main()

@@ -14,7 +14,11 @@ from time import time
 from dataset import *
 from model import *
 from util import *
+from keras import backend as K
 
+
+def soft_acc(y_true, y_pred):
+    return K.mean(K.equal(K.round(y_true), K.round(y_pred)))
 
 def main():
 
@@ -237,8 +241,8 @@ def main():
         (x_gyro, x_acc, x_mag, y_delta_p, y_delta_q) = shuffle(x_gyro,
                 x_acc, x_mag, y_delta_p, y_delta_q)
 
-        pred_model = create_resnet_pred_model_9d_quat(window_size)
-        # pred_model = create_pred_model_9d_quat(window_size)
+        # pred_model = create_resnet_pred_model_9d_quat(window_size)
+        pred_model = create_pred_model_9d_quat(window_size)
         train_model = create_train_resnet_or_without_model_9d_quat(pred_model,
                 window_size)
     else:
@@ -251,7 +255,7 @@ def main():
         train_model = create_train_model_6d_quat(pred_model,
                 window_size)
 
-    train_model.compile(optimizer=Adam(0.0001), loss=None)
+    train_model.compile(optimizer=Adam(0.0001), loss=None, metrics=[tf.keras.metrics.Accuracy()])
 
     model_checkpoint = ModelCheckpoint('model_checkpoint.hdf5',
             monitor='val_loss', save_best_only=True, verbose=1)
@@ -272,20 +276,20 @@ def main():
             callbacks=[model_checkpoint, tensorboard],
             validation_split=0.1,
             )
-        # pred_model = create_pred_model_9d_quat(window_size)
-        pred_model = create_resnet_pred_model_9d_quat(window_size)
+        pred_model = create_pred_model_9d_quat(window_size)
+        # pred_model = create_resnet_pred_model_9d_quat(window_size)
     else:
         history = train_model.fit(
             [x_gyro, x_acc, y_delta_p, y_delta_q],
-            epochs=2,
+            epochs=500,
             batch_size=32,
             verbose=1,
             callbacks=[model_checkpoint, tensorboard],
             validation_split=0.1,
             )
 
-        # pred_model = create_pred_model_6d_quat(window_size)
-        pred_model = create_pred_resnet_model_6d_quat(window_size)
+        pred_model = create_pred_model_6d_quat(window_size)
+        # pred_model = create_pred_resnet_model_6d_quat(window_size)
 
 ###############################################################################
 #
@@ -294,8 +298,7 @@ def main():
 ###############################################################################
 
     train_model = load_model('model_checkpoint.hdf5',
-                             custom_objects={'CustomMultiLossLayer': CustomMultiLossLayer},
-                             compile=False)
+                             custom_objects={'CustomMultiLossLayer': CustomMultiLossLayer})
 
     pred_model.set_weights(train_model.get_weights()[:-2])
     pred_model.save('%s.hdf5' % args.output)
@@ -307,7 +310,7 @@ def main():
     plt.xlabel('Epoch')
     plt.legend(['Train', 'Validation'], loc='upper left')
     plt.show()
-    plt.savefig("loss_per_epoch_resnet9D.png")
+    plt.savefig("loss_results/loss_per_epoch_{}_{}.png".format(time(), args.dataset))
 
 
 if __name__ == '__main__':
