@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 import quaternion
 import scipy.interpolate
-import glob
 
 from tensorflow.keras.utils import Sequence
+
 
 def interpolate_3dvector_linear(input, input_timestamp, output_timestamp):
     assert input.shape[0] == input_timestamp.shape[0]
@@ -12,17 +12,6 @@ def interpolate_3dvector_linear(input, input_timestamp, output_timestamp):
     interpolated = func(output_timestamp)
     return interpolated
 
-def load_synthetic_dataset(path):
-    df = pd.concat(map(lambda x:pd.read_csv(x, header = None), glob.glob(path + "/*.csv")))
-    df.columns = ["time", "AccX", "AccY", "AccZ", "GyroX", "GyroY", "GyroZ", "MagX", "MagY", "MagZ","PosX","PosY", "PosZ", "AngvW", "Angvi", "Angvj", "Angvk"]
-
-    gyro_data = df[["GyroX", "GyroY", "GyroZ"]].values
-    acc_data = X = df[["AccX", "AccY", "AccZ"]].values
-    
-    pos_data = df[["PosX","PosY", "PosZ"]].values
-    ori_data = df[["AngvW", "Angvi", "Angvj", "Angvk"]].values
-
-    return gyro_data, acc_data, pos_data, ori_data
 
 def load_euroc_mav_dataset(imu_data_filename, gt_data_filename):
     gt_data = pd.read_csv(gt_data_filename).values    
@@ -32,21 +21,27 @@ def load_euroc_mav_dataset(imu_data_filename, gt_data_filename):
     acc_data = interpolate_3dvector_linear(imu_data[:, 4:7], imu_data[:, 0], gt_data[:, 0])
     pos_data = gt_data[:, 1:4]
     ori_data = gt_data[:, 4:8]
+
+    return gyro_data, acc_data, pos_data, ori_data
+
+
+def load_oxiod_dataset(imu_data_filename, gt_data_filename):
+    imu_data = pd.read_csv(imu_data_filename).values
+    gt_data = pd.read_csv(gt_data_filename).values
+
+    imu_data = imu_data[1200:-300]
+    gt_data = gt_data[1200:-300]
+
+    gyro_data = imu_data[:, 4:7]
+    acc_data = imu_data[:, 10:13]
     
-def load_synthetic_9d_dataset(path):
-    df = pd.concat(map(lambda x:pd.read_csv(x, header = None), glob.glob(path + "/*.csv")))
-    df.columns = ["time", "AccX", "AccY", "AccZ", "GyroX", "GyroY", "GyroZ", "MagX", "MagY", "MagZ","PosX","PosY", "PosZ", "AngvW", "Angvi", "Angvj", "Angvk"]
+    pos_data = gt_data[:, 2:5]
+    ori_data = np.concatenate([gt_data[:, 8:9], gt_data[:, 5:8]], axis=1)
 
-    gyro_data = df[["GyroX", "GyroY", "GyroZ"]].values
-    acc_data = df[["AccX", "AccY", "AccZ"]].values
-    mag_data = df[["MagX", "MagY", "MagZ"]].values
-    pos_data = df[["PosX","PosY", "PosZ"]].values
-    ori_data = df[["AngvW", "Angvi", "Angvj", "Angvk"]].values
-
-    return gyro_data, acc_data, mag_data, pos_data, ori_data
+    return gyro_data, acc_data, pos_data, ori_data
 
 
-def load_dataset_9d_quat(gyro_data, acc_data, mag_data, pos_data, ori_data, window_size=200, stride=10):
+def load_dataset_9d_quat(gyro_data, acc_data, mag_data, pos_data, ori_data, window_size, stride):
 
     init_p = pos_data[window_size//2 - stride//2, :]
     init_q = ori_data[window_size//2 - stride//2, :]
@@ -82,24 +77,6 @@ def load_dataset_9d_quat(gyro_data, acc_data, mag_data, pos_data, ori_data, wind
     y_delta_q = np.reshape(y_delta_q, (len(y_delta_q), y_delta_q[0].shape[0]))
 
     return [x_gyro, x_acc, x_mag], [y_delta_p, y_delta_q], init_p, init_q
-
-    return gyro_data, acc_data, pos_data, ori_data
-
-
-def load_oxiod_dataset(imu_data_filename, gt_data_filename):
-    imu_data = pd.read_csv(imu_data_filename).values
-    gt_data = pd.read_csv(gt_data_filename).values
-
-    imu_data = imu_data[1200:-300]
-    gt_data = gt_data[1200:-300]
-
-    gyro_data = imu_data[:, 4:7]
-    acc_data = imu_data[:, 10:13]
-    
-    pos_data = gt_data[:, 2:5]
-    ori_data = np.concatenate([gt_data[:, 8:9], gt_data[:, 5:8]], axis=1)
-
-    return gyro_data, acc_data, pos_data, ori_data
 
 def load_oxiod_9D_dataset(imu_data_filename, gt_data_filename):
     imu_data = pd.read_csv(imu_data_filename).values
@@ -385,4 +362,4 @@ def load_dataset_2d(imu_data_filename, gt_data_filename, window_size=200, stride
     y_delta_l = np.reshape(y_delta_l, (len(y_delta_l), y_delta_l[0].shape[0]))
     y_delta_psi = np.reshape(y_delta_psi, (len(y_delta_psi), y_delta_psi[0].shape[0]))
 
-    return x, [y_delta_l, y_delta_psi], init_l, init_psi
+    return x, [y_delta_l, y_delta_psi], init_l, init_psi        
