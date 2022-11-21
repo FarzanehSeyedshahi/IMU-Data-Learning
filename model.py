@@ -3,22 +3,32 @@ import tfquaternion as tfq
 import tensorflow as tf
 from util import *
 import tensorflow_addons as tfa
+import tensorflow_graphics as tfg
+
 
 
 from keras.models import Sequential, Model
 from keras.layers import Bidirectional, Flatten, Reshape, Lambda, CuDNNLSTM, Dropout, Dense, Input, MaxPooling2D, Layer, Conv2D, Conv1D, MaxPooling1D, concatenate, Add, Activation
 from keras.initializers import Constant
 from tensorflow.keras.optimizers import Adam
-from keras.losses import mean_absolute_error
+from keras.losses import mean_absolute_error, mean_squared_error
 from keras import backend as K
 
 from tensorflow import keras
 from tensorflow.keras import layers
+from scipy.spatial.transform import Rotation as R
 
 window_size_transformer = 200
 
+import tensorflow_graphics.geometry.transformation as tfg
+
+
 def quaternion_phi_3_error(y_true, y_pred):
     return tf.acos(K.abs(K.batch_dot(y_true, K.l2_normalize(y_pred, axis=-1), axes=-1)))
+
+#log L for rotation matrix
+def quaternion_log_phi_3_error(y_true, y_pred):
+    return K.log(1e-4 + quaternion_phi_3_error(y_true, y_pred))
 
 #LQIP
 def quaternion_phi_4_error(y_true, y_pred):
@@ -36,10 +46,22 @@ def quat_mult_error(y_true, y_pred):
     w, x, y, z = tf.split(q_prod, num_or_size_splits=4, axis=-1)
     return tf.abs(tf.multiply(2.0, tf.concat(values=[x, y, z], axis=-1)))
 
+def rot_mult_error(y_true, y_pred):
+    r_pred = tf.linalg.normalize(y_pred)
+    r_true = y_true
+    tf.print(r_true, tf.shape(r_true[0]), tf.shape(r_true[1]))
+    # tf.print(r_pred, tf.shape(r_pred))
+    # tf.print(y_pred, tf.shape(y_pred))
+    r_prod = r_true* tf.transpose(r_pred)
+    x, y, z = tf.split(r_prod, num_or_size_splits=3, axis=-1)
+    return tf.abs(tf.multiply(2.0, tf.concat(values=[x, y, z], axis=-1)))
+
+def rotation_matrix_mean_multiplicative_error(y_true, y_pred):
+    return tf.reduce_mean(rot_mult_error(y_true, y_pred))
+
 #mean LQME
 def quaternion_mean_multiplicative_error(y_true, y_pred):
     return tf.reduce_mean(quat_mult_error(y_true, y_pred))
-
 
 # Custom loss layer
 class CustomMultiLossLayer(Layer):
@@ -73,14 +95,40 @@ class CustomMultiLossLayer(Layer):
         #    precision = K.exp(-log_var[0])
         #    loss += K.sum(precision * (y_true - y_pred)**2., -1) + log_var[0]
 
+        ######L position
         #LTMAE
         precision = K.exp(-self.log_vars[0][0])
         loss += precision * mean_absolute_error(ys_true[0], ys_pred[0]) + self.log_vars[0][0]
-        #LQMAE
+        
+        ######L Orientation
         precision = K.exp(-self.log_vars[1][0])
-        loss += precision * quaternion_mean_multiplicative_error(ys_true[1], ys_pred[1]) + self.log_vars[1][0]
+        #LQMAE
+        # loss += precision * quaternion_mean_multiplicative_error(ys_true[1], ys_pred[1]) + self.log_vars[1][0]
+        # loss += precision * rotation_matrix_mean_multiplicative_error(ys_true[1], ys_pred[1]) + self.log_vars[1][0]
+
+
         #LQIP
-        #loss += precision * quaternion_phi_4_error(ys_true[1], ys_pred[1]) + self.log_vars[1][0]
+        # loss += precision * quaternion_phi_4_error(ys_true[1], ys_pred[1]) + self.log_vars[1][0]
+        
+        #loss 6D from Quaternion
+        # r_true = tfg.rotation_matrix_3d.from_quaternion(ys_true[1])
+        r_true = ys_true[1]
+
+        # r_pred = tfg.rotation_matrix_3d.from_quaternion(ys_pred[1])
+        r_pred = ys_pred[1]
+        # tf.print(tf.shape(r_true))
+
+        indices = [0,1]
+        rm_true = tf.gather(r_true, indices, axis = 1)
+        rm_pred = tf.gather(r_pred, indices, axis = 1)
+
+        # r_true = r_true[:,:,0]
+        # r_pred = r_pred[:,:,1]
+    
+        mse = tf.keras.losses.MeanSquaredError()
+        # loss += precision * mse(rm_true, rm_pred) + self.log_vars[1][0]
+        loss += precision * mean_absolute_error(rm_true, rm_pred) + self.log_vars[1][0]
+
 
         return K.mean(loss)
 
@@ -110,7 +158,9 @@ def create_pred_model_6d_quat(window_size=200):
     lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)
     drop2 = Dropout(0.25)(lstm2)    
     y1_pred = Dense(3)(drop2)
-    y2_pred = Dense(4)(drop2)
+    # y2_pred = Dense(4)(drop2)
+    #Rotation Matrix
+    y2_pred = Dense(3)(drop2)
 
     #model = Model(inp, [y1_pred, y2_pred])
     model = Model([x1, x2], [y1_pred, y2_pred])
@@ -127,7 +177,10 @@ def create_train_model_6d_quat(pred_model, window_size=200):
     x2 = Input((window_size, 3), name='x2')
     y1_pred, y2_pred = pred_model([x1, x2])
     y1_true = Input(shape=(3,), name='y1_true')
-    y2_true = Input(shape=(4,), name='y2_true')
+    #Quaternion
+    # y2_true = Input(shape=(4,), name='y2_true')
+    #Rotation matrix
+    y2_true = Input(shape=(3,), name='y2_true')
     out = CustomMultiLossLayer(nb_outputs=2)([y1_true, y2_true, y1_pred, y2_pred])
     #train_model = Model([inp, y1_true, y2_true], out)
     train_model = Model([x1, x2, y1_true, y2_true], out)
@@ -202,7 +255,10 @@ def create_model_6d_quat(window_size=200):
     lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)    
     drop2 = Dropout(0.25)(lstm2)    
     output_delta_p = Dense(3)(drop2)
-    output_delta_q = Dense(4)(drop2)
+    #Quaternion
+    # output_delta_q = Dense(4)(drop2)
+    #Rotation Matrix
+    output_delta_q = Dense(3)(drop2)
 
     model = Model(inputs = input_gyro_acc, outputs = [output_delta_p, output_delta_q])
     model.summary()
@@ -274,11 +330,15 @@ def create_pred_resnet_model_6d_quat(window_size=200):
     lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)
     drop2 = Dropout(0.25)(lstm2)    
     y1_pred = Dense(3)(drop2)
-    y2_pred = Dense(4)(drop2)
+    #Quaternion
+    # y2_pred = Dense(4)(drop2)
+    #Rotation Matrix
+    y2_pred = Dense(3)(drop2)
+
     model = Model([x1, x2], [y1_pred, y2_pred])
     model.summary()
     return model
-
+######################################################################################################
 ## Adding 9d resnet model
 def create_resnet_pred_model_9d_quat(window_size=200):
     
@@ -316,9 +376,14 @@ def create_resnet_pred_model_9d_quat(window_size=200):
     lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)
     drop2 = Dropout(0.25)(lstm2)    
     y1_pred = Dense(3)(drop2)
-    y2_pred = Dense(4)(drop2)
+    #Quaternion
+    # y2_pred = Dense(4)(drop2)
+    #Rotation Matrix
+    y2_pred = Dense(3)(drop2)
 
     model = Model([x1, x2, x3], [y1_pred, y2_pred])
+    # model = Model([x2], [y1_pred, y2_pred])
+
     model.summary()
     return model
 
@@ -327,11 +392,19 @@ def create_train_resnet_or_without_model_9d_quat(pred_model, window_size):
     x1 = Input((window_size, 3), name='x1')
     x2 = Input((window_size, 3), name='x2')
     x3 = Input((window_size, 3), name='x3')
+    # y1_pred, y2_pred = pred_model([x2])
     y1_pred, y2_pred = pred_model([x1, x2, x3])
     y1_true = Input(shape=(3,), name='y1_true')
-    y2_true = Input(shape=(4,), name='y2_true')
+    #Quaternion
+    # y2_true = Input(shape=(4,), name='y2_true')
+    #Rotation matrix
+    y2_true = Input(shape=(3,), name='y2_true')
+
     out = CustomMultiLossLayer(nb_outputs=2)([y1_true, y2_true, y1_pred, y2_pred])
-    train_model = Model([x1, x2, x3, y1_true, y2_true], out)
+
+    train_model = Model([x1, x2, x3, y1_true, y2_true], out)    
+    # train_model = Model([x2, y1_trsue, y2_true], out)
+
     # train_model.summary()
     return train_model
 
@@ -506,7 +579,10 @@ def create_transformer_pred_model_9d(
         x = layers.Dense(dim, activation="relu")(x)
         x = layers.Dropout(mlp_dropout)(x)
     y1_pred = Dense(3)(x)
-    y2_pred = Dense(4)(x)
+    #Quaternion
+    # y2_pred = Dense(4)(drop2)
+    #Rotation Matrix
+    y2_pred = Dense(3)(x)
 
 
     model = Model([x1, x2, x3], [y1_pred, y2_pred])
@@ -645,7 +721,9 @@ def create_vit_classifier(input_shape, image_size, patch_size, projection_dim, n
 
     # Classify outputs.
     y_true1 = layers.Dense(3)(drop2)
-    y_true2 = layers.Dense(4)(drop2)
+    # y2_pred = Dense(4)(drop2)
+    #Rotation Matrix
+    y_true2 = Dense(3)(drop2)
 
     # Create the Keras model.
     model = keras.Model(inputs=inputs, outputs=[y_true1,y_true2])
@@ -659,7 +737,10 @@ def create_VIT_model_9d(pred_model, window_size):
     x = Input((window_size, 9), name='x')
     y1_pred, y2_pred = pred_model(x)
     y1_true = Input(shape=(3,), name='y1_true')
-    y2_true = Input(shape=(4,), name='y2_true')
+    #Quaternion
+    # y2_true = Input(shape=(4,), name='y2_true')
+    #Rotation matrix
+    y2_true = Input(shape=(3,), name='y2_true')
     out = CustomMultiLossLayer(nb_outputs=2)([y1_true, y2_true, y1_pred, y2_pred])
     train_model = Model([x, y1_true, y2_true], out)
     return train_model
@@ -752,7 +833,9 @@ def create_combined_transformer_pred_model_9d(window_size):
 
     # # Classify outputs.
     y1_pred = layers.Dense(3)(features)
-    y2_pred = layers.Dense(4)(features)
+    # y2_pred = Dense(4)(drop2)
+    #Rotation Matrix
+    y2_pred = Dense(3)(features)
 
     # # Create the Keras model.
     model = keras.Model([x1, x2, x3], [y1_pred, y2_pred])
@@ -812,7 +895,9 @@ def create_pred_resnet_cwt(sample_size, window_size=200):
     # lstm2 = Bidirectional(CuDNNLSTM(128))(drop1)
     # drop2 = Dropout(0.25)(ABC)    
     y1_pred = Dense(3)(ABC)
-    y2_pred = Dense(4)(ABC)
+    # y2_pred = Dense(4)(ABC)
+    #Rotation Matrix
+    y2_pred = Dense(3)(ABC)
 
     model = Model([x1, x2, x3], [y1_pred, y2_pred])
     return model
@@ -823,7 +908,10 @@ def create_train_resnet_cwt(pred_model, sample_size, window_size):
     x3 = Input((sample_size, window_size, 3), name='x3')
     y1_pred, y2_pred = pred_model([x1, x2, x3])
     y1_true = Input(shape=(3,), name='y1_true')
-    y2_true = Input(shape=(4,), name='y2_true')
+    #Quaternion
+    # y2_true = Input(shape=(4,), name='y2_true')
+    #Rotation matrix
+    y2_true = Input(shape=(3,), name='y2_true')
     out = CustomMultiLossLayer(nb_outputs=2)([y1_true, y2_true, y1_pred, y2_pred])
     train_model = Model([x1, x2, x3, y1_true, y2_true], out)
     return train_model
