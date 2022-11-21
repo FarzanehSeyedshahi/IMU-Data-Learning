@@ -3,6 +3,8 @@ import quaternion
 import tensorflow as tf
 from tqdm import tqdm
 import pywt
+from scipy.spatial.transform import Rotation as R
+
 
 def generate_trajectory_6d_quat(init_p, init_q, y_delta_p, y_delta_q):
     cur_p = np.array(init_p)
@@ -34,6 +36,10 @@ def generate_trajectory_3d(init_l, init_theta, init_psi, y_delta_l, y_delta_thet
         pred_l.append(np.array(cur_l))
 
     return np.reshape(pred_l, (len(pred_l), 3))
+
+
+def get_quat_from_rot_vec(a,b,c):
+  return R.from_rotvec(np.array([a,b,c])).as_quat()
 
 def causal_mask(batch, size):
     x, y = tf.expand_dims(tf.range(size),1), tf.range(size)
