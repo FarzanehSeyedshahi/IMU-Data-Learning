@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 import quaternion
 import scipy.interpolate
+import glob, os
 
+from util import *
 from tensorflow.keras.utils import Sequence
 
 
@@ -52,6 +54,8 @@ def load_dataset_9d_quat(gyro_data, acc_data, mag_data, pos_data, ori_data, wind
     y_delta_p = []
     y_delta_q = []
 
+    # print(np.array(pos_data).shape, pos_data[0])
+    # print(np.array(ori_data).shape, ori_data[0])
     for idx in range(0, gyro_data.shape[0] - window_size - 1, stride):
         x_gyro.append(gyro_data[idx + 1 : idx + 1 + window_size, :])
         x_acc.append(acc_data[idx + 1 : idx + 1 + window_size, :])
@@ -75,8 +79,50 @@ def load_dataset_9d_quat(gyro_data, acc_data, mag_data, pos_data, ori_data, wind
     x_mag = np.reshape(x_mag, (len(x_mag), x_mag[0].shape[0], x_mag[0].shape[1]))
     y_delta_p = np.reshape(y_delta_p, (len(y_delta_p), y_delta_p[0].shape[0]))
     y_delta_q = np.reshape(y_delta_q, (len(y_delta_q), y_delta_q[0].shape[0]))
-
     return [x_gyro, x_acc, x_mag], [y_delta_p, y_delta_q], init_p, init_q
+
+def load_dataset_9d_rm(gyro_data, acc_data, mag_data, pos_data, ori_data, window_size, stride):
+    if np.isnan(ori_data).any():print("***********")
+
+
+    init_p = pos_data[window_size//2 - stride//2, :]
+    init_q = ori_data[window_size//2 - stride//2, :]
+
+    x_gyro = []
+    x_acc = []
+    x_mag = []
+    y_delta_p = []
+    y_delta_rm = []
+    # print(np.array(pos_data).shape, pos_data[0])
+    # print(np.array(ori_data).shape, ori_data[0])
+    for idx in range(0, gyro_data.shape[0] - window_size - 1, stride):
+        x_gyro.append(gyro_data[idx + 1 : idx + 1 + window_size, :])
+        x_acc.append(acc_data[idx + 1 : idx + 1 + window_size, :])
+        x_mag.append(mag_data[idx + 1 : idx + 1 + window_size, :])
+
+        p_a = pos_data[idx + window_size//2 - stride//2, :]
+        p_b = pos_data[idx + window_size//2 + stride//2, :]
+
+        rm_a = ori_data[idx + window_size//2 - stride//2, :]
+        rm_b = ori_data[idx + window_size//2 + stride//2, :]
+
+        # Just Considering the exact position
+        delta_p = p_b.T - p_a.T
+
+        # delta_q = force_quaternion_uniqueness(q_a.conjugate() * q_b)
+        delta_rm = rm_a.T * rm_b
+
+        y_delta_p.append(delta_p)
+        y_delta_rm.append(delta_rm)
+
+    x_gyro = np.reshape(x_gyro, (len(x_gyro), x_gyro[0].shape[0], x_gyro[0].shape[1]))
+    x_acc = np.reshape(x_acc, (len(x_acc), x_acc[0].shape[0], x_acc[0].shape[1]))
+    x_mag = np.reshape(x_mag, (len(x_mag), x_mag[0].shape[0], x_mag[0].shape[1]))
+    y_delta_p = np.reshape(y_delta_p, (len(y_delta_p), y_delta_p[0].shape[0]))
+    y_delta_rm = np.reshape(y_delta_rm, (len(y_delta_rm), y_delta_rm[0].shape[0]))
+
+    return [x_gyro, x_acc, x_mag], [y_delta_p, y_delta_rm], init_p, init_q
+
 
 def load_oxiod_9D_dataset(imu_data_filename, gt_data_filename):
     imu_data = pd.read_csv(imu_data_filename).values
@@ -118,6 +164,24 @@ def force_quaternion_uniqueness(q):
             return -q
         else:
             return q
+
+# def force_rotation_matrix_uniqueness(rm):
+
+#     if np.absolute(rm[1]) > 1e-05:
+#         if rm[0] < 0:
+#             return -rm
+#         else:
+#             return rm
+#     elif np.absolute(rm[2]) > 1e-05:
+#         if rm[1] < 0:
+#             return -rm
+#         else:
+#             return rm
+#     else:
+#         if rm[2] < 0:
+#             return -rm
+#         else:
+#             return rm
 
 
 def cartesian_to_spherical_coordinates(point_cartesian):
@@ -363,3 +427,63 @@ def load_dataset_2d(imu_data_filename, gt_data_filename, window_size=200, stride
     y_delta_psi = np.reshape(y_delta_psi, (len(y_delta_psi), y_delta_psi[0].shape[0]))
 
     return x, [y_delta_l, y_delta_psi], init_l, init_psi        
+
+def load_dataset_IMUData(dataset_path, file_names):
+    ImuDataR, ImuDataL, gtRmL, gtRmR, gtQL, gtQR = np.empty((0,17)), np.empty((0,17)), np.empty((0,8)), np.empty((0,8)), np.empty((0,4)), np.empty((0,4))
+    # Reading file by file in the folder: Changing to np.array
+    os.chdir(dataset_path)
+    i = 0
+    for file in glob.glob(file_names):
+        i = i+1
+        ImuDataRtmp, ImuDataLtmp, gtRmLtmp, gtRmRtmp, gtQLtmp, gtQRtmp = getCSVData(dataset_path + file)
+
+        ImuDataR = np.append(ImuDataR, ImuDataRtmp.values, axis=0)
+        ImuDataL = np.append(ImuDataL, ImuDataLtmp.values, axis=0)
+
+        gtRmR = np.append(gtRmR, gtRmRtmp.values, axis=0)
+        gtRmL = np.append(gtRmL, gtRmLtmp.values, axis=0)
+
+        gtQR = np.append(gtQR, gtQRtmp.values, axis=0)
+        gtQL = np.append(gtQL, gtQLtmp.values, axis=0)
+    # print(i)
+
+    #IMUData
+    x_accR, x_accL = ImuDataR[:,2:5], ImuDataL[:,2:5]
+    x_gyroR, x_gyroL = ImuDataR[:,5:8], ImuDataL[:,5:8]
+    x_magR, x_magL = ImuDataR[:,8:11], ImuDataL[:,8:11]
+
+    #Groundtruth
+    y_poseR, y_poseL = gtRmR[:,5:8], gtRmL[:,5:8]
+    y_orientationQR, y_orientationQL = gtQR[:,:], gtQL[:,:]
+    y_orientationRmR, y_orientationRmL = gtRmR[:,2:5], gtRmL[:,2:5]
+
+    return x_accR, x_accL, x_gyroR, x_gyroL, x_magR, x_magL, y_poseR, y_poseL, y_orientationRmR, y_orientationRmL, y_orientationQR, y_orientationQL
+
+def getCSVData(filename):
+  skipA = 5
+  skipB = 6
+  mycolumns1 = ["Frame", "Subframe", "AccX-L", "AccY-L", "AccZ-L", "GyroX-L", "GyroY-L", "GyroZ-L", "MagX-L", "MagY-L", "MagZ-L","GlobalAngX-L","GlobalAngY-L", "GlobalAngZ-L", "HighGX-L", "HighGY-L", "HighGZ-L", "AccX-R","AccY-R", "AccZ-R", "GyroX-R", "GyroY-R", "GyroZ-R", "MagX-R", "MagY-R", "MagZ-R","GlobalAngX-R","GlobalAngY-R", "GlobalAngZ-R", "HighGX-R", "HighGY-R", "HighGZ-R"]
+  dftest = pd.read_csv(filename,skiprows=skipA, skip_blank_lines=False, names= mycolumns1, engine='python')
+  segment_row_number = dftest[dftest['Frame'] == 'Frame'].index[0]+1
+
+  #Reading the IMUData
+  df = pd.read_csv(filename, skiprows= skipA, header=None, nrows=segment_row_number-skipA)
+  df.columns = ["Frame", "Subframe", "AccX-L", "AccY-L", "AccZ-L", "GyroX-L", "GyroY-L", "GyroZ-L", "MagX-L", "MagY-L", "MagZ-L","GlobalAngX-L","GlobalAngY-L", "GlobalAngZ-L", "HighGX-L", "HighGY-L", "HighGZ-L", "AccX-R","AccY-R", "AccZ-R", "GyroX-R", "GyroY-R", "GyroZ-R", "MagX-R", "MagY-R", "MagZ-R","GlobalAngX-R","GlobalAngY-R", "GlobalAngZ-R", "HighGX-R", "HighGY-R", "HighGZ-R"]
+  
+  #put a filter on a subframe
+  ImuDataL = df.query('Subframe == 0')[["Frame", "Subframe", "AccX-L", "AccY-L", "AccZ-L", "GyroX-L", "GyroY-L", "GyroZ-L", "MagX-L", "MagY-L", "MagZ-L","GlobalAngX-L","GlobalAngY-L", "GlobalAngZ-L", "HighGX-L", "HighGY-L", "HighGZ-L"]]
+  ImuDataR = df.query('Subframe == 0')[["Frame", "Subframe", "AccX-R","AccY-R", "AccZ-R", "GyroX-R", "GyroY-R", "GyroZ-R", "MagX-R", "MagY-R", "MagZ-R","GlobalAngX-R","GlobalAngY-R", "GlobalAngZ-R", "HighGX-R", "HighGY-R", "HighGZ-R"]]
+  
+  #Reading Ground Truth(Rotation Matrix)
+  marker = pd.read_csv(filename, skiprows = segment_row_number+skipB, header=None)
+  marker.columns = ["Frame", "Subframe", "RX-L", "RY-L", "RZ-L", "TX-L", "TY-L", "TZ-L", "RX-R","RY-R", "RZ-R", "TX-R", "TY-R", "TZ-R"]
+  gtRmL = marker[["Frame", "Subframe", "RX-L", "RY-L", "RZ-L", "TX-L", "TY-L", "TZ-L"]]
+  gtRmR = marker[["Frame", "Subframe","RX-R","RY-R", "RZ-R", "TX-R", "TY-R", "TZ-R"]]
+  
+  #Reading Ground Truth(Quaternion)
+  tempL = pd.DataFrame(marker.apply(lambda row : get_quat_from_rot_vec(marker['RX-L'].iloc[0],marker['RY-L'].iloc[0], marker['RZ-L'].iloc[0]), axis = 1))
+  gtQL = pd.DataFrame(tempL.iloc[:,0].tolist(), columns=["AngvW", "Angvi", "Angvj", "Angvk"])
+  tempR = pd.DataFrame(marker.apply(lambda row : get_quat_from_rot_vec(marker['RX-R'].iloc[0],marker['RY-R'].iloc[0], marker['RZ-R'].iloc[0]), axis = 1))
+  gtQR = pd.DataFrame(tempR.iloc[:,0].tolist(), columns=["AngvW", "Angvi", "Angvj", "Angvk"])
+  return ImuDataR, ImuDataL, gtRmL, gtRmR, gtQL, gtQR
+
